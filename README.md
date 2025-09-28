@@ -41,8 +41,9 @@ Il server sarà disponibile su **http://localhost:3000**
 2. Avvia il servizio MySQL
 3. Modifica il file `.env` con le tue credenziali
 
-### File .env
-Crea/modifica il file `.env` nella root del progetto:
+### Configurazione File .env
+1. Copia il file di esempio: `cp .env.example .env`
+2. Modifica il file `.env` con le tue credenziali:
 ```env
 DB_HOST=localhost
 DB_PORT=3306
@@ -51,6 +52,8 @@ DB_PASSWORD=          # Lascia vuoto per XAMPP
 DB_NAME=meditactive
 PORT=3000
 ```
+
+**Nota Sicurezza:** Il file `.env` contiene credenziali sensibili e non deve mai essere committato su Git.
 
 ## �📚 Tecnologie Utilizzate
 
