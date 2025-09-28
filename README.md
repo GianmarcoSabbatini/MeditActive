@@ -27,7 +27,7 @@ npm run dev
 
 Il server sarà disponibile su **http://localhost:3000**
 
-## �️ Configurazione Database MySQL
+## Configurazione Database MySQL
 
 ### Opzione 1: XAMPP (Raccomandato per principianti)
 1. Scarica XAMPP da https://www.apachefriends.org/
@@ -55,7 +55,7 @@ PORT=3000
 
 **Nota Sicurezza:** Il file `.env` contiene credenziali sensibili e non deve mai essere committato su Git.
 
-## �📚 Tecnologie Utilizzate
+##  Tecnologie Utilizzate
 
 - **Node.js** con **Express.js** - Server e routing
 - **MySQL** - Database relazionale 
@@ -101,7 +101,7 @@ CREATE TABLE interval_goals (
 ) ENGINE=InnoDB;
 ```
 
-## 🔌 API Endpoints
+## API Endpoints
 
 ### Utenti (`/api/users`)
 
@@ -297,7 +297,7 @@ progetto node/
 └── package.json               # Dipendenze e script
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Server non parte
 ```bash
