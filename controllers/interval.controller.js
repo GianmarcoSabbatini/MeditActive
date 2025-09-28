@@ -1,6 +1,6 @@
 const { getDB } = require('../config/db');
 
-// Funzione helper per recuperare un intervallo completo dei suoi obiettivi
+// recupera un interval completo
 const getIntervalWithGoals = async (id) => {
   const database = await getDB();
   const intervalSql = `
@@ -13,17 +13,18 @@ const getIntervalWithGoals = async (id) => {
   `;
   const goalsSql = 'SELECT goal_name FROM interval_goals WHERE interval_id = ?';
 
-  const interval = await database.get(intervalSql, [id]);
+  const [intervals] = await database.execute(intervalSql, [id]);
+  const interval = intervals[0];
   if (!interval) return null;
 
-  const goals = await database.all(goalsSql, [id]);
+  const [goals] = await database.execute(goalsSql, [id]);
   
   interval.obiettivi = goals.map(g => g.goal_name);
   
   return interval;
 };
 
-// Logica per creare un nuovo intervallo
+// crea nuovo interval
 exports.createInterval = async (req, res) => {
   try {
     const { dataInizio, dataFine, utenteId } = req.body;
@@ -35,37 +36,76 @@ exports.createInterval = async (req, res) => {
     }
 
     const database = await getDB();
-    const user = await database.get('SELECT id FROM users WHERE id = ?', [utenteId]);
+    const [users] = await database.execute('SELECT id FROM users WHERE id = ?', [utenteId]);
+    const user = users[0];
     if(!user) {
         return res.status(404).json({ message: "Utente specificato non trovato." });
     }
 
     const sql = 'INSERT INTO intervals (start_date, end_date, user_id) VALUES (?, ?, ?)';
-    const result = await database.run(sql, [dataInizio, dataFine, utenteId]);
+    const [result] = await database.execute(sql, [dataInizio, dataFine, utenteId]);
     
-    const createdInterval = await getIntervalWithGoals(result.lastID);
+    const createdInterval = await getIntervalWithGoals(result.insertId);
     res.status(201).json(createdInterval);
   } catch (error) {
     res.status(500).json({ message: "Errore durante la creazione dell'intervallo.", error: error.message });
   }
 };
 
-// Logica per ottenere tutti gli intervalli
+// tutti gli interval
 exports.getAllIntervals = async (req, res) => {
   try {
+    const { obiettivi, dataInizio, dataFine } = req.query;
     const database = await getDB();
-    const intervals = await database.all(`
+    
+    let baseSql = `
         SELECT 
             i.id, i.start_date, i.end_date, i.user_id,
             u.email, u.nome, u.cognome
         FROM intervals i
         JOIN users u ON i.user_id = u.id
-        ORDER BY i.created_at DESC
-    `);
+    `;
+    
+    let whereConditions = [];
+    let params = [];
+    
+    // Filtro per data inizio
+    if (dataInizio) {
+      whereConditions.push('i.start_date >= ?');
+      params.push(dataInizio);
+    }
+    
+    // Filtro per data fine
+    if (dataFine) {
+      whereConditions.push('i.end_date <= ?');
+      params.push(dataFine);
+    }
+    
+    // Filtro per obiettivi
+    if (obiettivi) {
+      baseSql = `
+        SELECT DISTINCT
+            i.id, i.start_date, i.end_date, i.user_id,
+            u.email, u.nome, u.cognome
+        FROM intervals i
+        JOIN users u ON i.user_id = u.id
+        JOIN interval_goals ig ON i.id = ig.interval_id
+      `;
+      whereConditions.push('ig.goal_name LIKE ?');
+      params.push(`%${obiettivi}%`);
+    }
+    
+    if (whereConditions.length > 0) {
+      baseSql += ' WHERE ' + whereConditions.join(' AND ');
+    }
+    
+    baseSql += ' ORDER BY i.created_at DESC';
+    
+    const [intervals] = await database.execute(baseSql, params);
     
     // Aggiungi obiettivi per ogni intervallo
     for (let interval of intervals) {
-      const goals = await database.all('SELECT goal_name FROM interval_goals WHERE interval_id = ?', [interval.id]);
+      const [goals] = await database.execute('SELECT goal_name FROM interval_goals WHERE interval_id = ?', [interval.id]);
       interval.obiettivi = goals.map(g => g.goal_name);
     }
     
@@ -75,7 +115,7 @@ exports.getAllIntervals = async (req, res) => {
   }
 };
 
-// Logica per ottenere un singolo intervallo
+// recupera un interval specifico
 exports.getIntervalById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -89,7 +129,7 @@ exports.getIntervalById = async (req, res) => {
   }
 };
 
-// Logica per aggiornare un intervallo
+// aggiorna un interval
 exports.updateInterval = async (req, res) => {
     try {
         const { id } = req.params;
@@ -100,7 +140,8 @@ exports.updateInterval = async (req, res) => {
         }
         
         const database = await getDB();
-        const currentInterval = await database.get('SELECT start_date, end_date FROM intervals WHERE id = ?', [id]);
+        const [intervals] = await database.execute('SELECT start_date, end_date FROM intervals WHERE id = ?', [id]);
+        const currentInterval = intervals[0];
         if(!currentInterval) {
              return res.status(404).json({ message: "Intervallo non trovato." });
         }
@@ -109,9 +150,9 @@ exports.updateInterval = async (req, res) => {
         const newEndDate = dataFine || currentInterval.end_date;
 
         const sql = 'UPDATE intervals SET start_date = ?, end_date = ? WHERE id = ?';
-        const result = await database.run(sql, [newStartDate, newEndDate, id]);
+        const [result] = await database.execute(sql, [newStartDate, newEndDate, id]);
 
-        if (result.changes === 0) {
+        if (result.affectedRows === 0) {
             return res.status(404).json({ message: "Intervallo non trovato." });
         }
         
@@ -122,13 +163,13 @@ exports.updateInterval = async (req, res) => {
     }
 };
 
-// Logica per cancellare un intervallo
+// cancella interval
 exports.deleteInterval = async (req, res) => {
   try {
     const { id } = req.params;
     const database = await getDB();
-    const result = await database.run('DELETE FROM intervals WHERE id = ?', [id]);
-    if (result.changes === 0) {
+    const [result] = await database.execute('DELETE FROM intervals WHERE id = ?', [id]);
+    if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Intervallo non trovato." });
     }
     res.status(204).send();
@@ -137,7 +178,7 @@ exports.deleteInterval = async (req, res) => {
   }
 };
 
-// Logica per aggiungere un obiettivo a un intervallo
+// aggiungi obiettivo a interval
 exports.addGoalToInterval = async (req, res) => {
   try {
     const { id: interval_id } = req.params;
@@ -147,13 +188,14 @@ exports.addGoalToInterval = async (req, res) => {
     }
 
     const database = await getDB();
-    const interval = await database.get('SELECT id FROM intervals WHERE id = ?', [interval_id]);
+    const [intervals] = await database.execute('SELECT id FROM intervals WHERE id = ?', [interval_id]);
+    const interval = intervals[0];
     if(!interval) {
         return res.status(404).json({ message: 'Intervallo non trovato.' });
     }
 
     const sql = 'INSERT INTO interval_goals (interval_id, goal_name) VALUES (?, ?)';
-    await database.run(sql, [interval_id, obiettivo]);
+    await database.execute(sql, [interval_id, obiettivo]);
     
     const updatedInterval = await getIntervalWithGoals(interval_id);
     res.status(200).json(updatedInterval);
