@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const intervalController = require('../controllers/interval.controller');
 
-// Definizione delle rotte e associazione alle funzioni del controller
 
 // GET /api/intervals - Ottiene tutti gli intervalli (con filtri opzionali)
 router.get('/', intervalController.getAllIntervals);

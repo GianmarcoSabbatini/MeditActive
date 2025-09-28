@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/user.controller');
 
-// Definizione delle rotte e associazione alle funzioni del controller
 
 // GET /api/users - Ottiene tutti gli utenti
 router.get('/', userController.getAllUsers);
