@@ -4,6 +4,15 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 let pool;
+let logger;
+
+// Lazy load del logger per evitare dipendenze circolari
+const getLogger = () => {
+  if (!logger) {
+    logger = require('./logger');
+  }
+  return logger;
+};
 
 // connessione a mysql
 async function initDB() {
@@ -22,10 +31,10 @@ async function initDB() {
     // Verifica
     try {
       const connection = await pool.getConnection();
-      console.log('Database MySQL connesso:', process.env.DB_NAME || 'meditactive');
+      getLogger().info('Database MySQL connesso: ' + (process.env.DB_NAME || 'meditactive'));
       connection.release();
     } catch (error) {
-      console.error('Errore connessione MySQL:', error.message);
+      getLogger().error('Errore connessione MySQL: ' + error.message);
       throw error;
     }
   }

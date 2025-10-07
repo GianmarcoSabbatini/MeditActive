@@ -1,73 +1,74 @@
-# MeditActive API
+﻿# MeditActive API
 
-API REST## Configurazione Databas## Tecnologie Utilizzate MySQLul per l'applicazione MeditActive - gestione utenti, intervalli di meditazione e obiettivi.
+API REST per la gestione di utenti, intervalli di meditazione e obiettivi.
 
 ## Avvio Rapido
 
-### Prerequisiti
-- Node.js >= 16
-- npm
-- MySQL Server (consigliato XAMPP)
-
-### Installazione e Avvio
 ```bash
-# 1. Installa dipendenze
+# Installa le dipendenze
 npm install
 
-# 2. Configura MySQL nel file .env (vedi sezione Database)
-
-# 3. Avvia MySQL (tramite XAMPP o comando mysql)
-
-# 4. Configura il database MySQL
+# Configura il database (vedi sezione Database)
 npm run setup
 
-# 5. Avvia il server in modalità sviluppo
+# Avvia il server
 npm run dev
 ```
 
-Il server sarà disponibile su **http://localhost:3000**
+Server disponibile su http://localhost:3000
 
-## Configurazione Database MySQL
+## Prerequisiti
 
-### Opzione 1: XAMPP (Raccomandato per principianti)
+- Node.js versione 16 o superiore
+- MySQL Server (si consiglia XAMPP)
+- npm
+
+## Configurazione Database
+
+### Opzione 1: XAMPP (consigliata)
+
 1. Scarica XAMPP da https://www.apachefriends.org/
-2. Installa XAMPP
-3. Apri "XAMPP Control Panel"
-4. Clicca "Start" accanto a "MySQL"
-5. Il database sarà disponibile su localhost:3306
+2. Installa e avvia XAMPP Control Panel
+3. Clicca Start accanto a MySQL
+4. Il database sarà disponibile su localhost:3306
 
 ### Opzione 2: MySQL Standalone
-1. Installa MySQL Server
-2. Avvia il servizio MySQL
-3. Modifica il file `.env` con le tue credenziali
 
-### Configurazione File .env
-1. Copia il file di esempio: `cp .env.example .env`
-2. Modifica il file `.env` con le tue credenziali:
+1. Installa MySQL Server dal sito ufficiale
+2. Avvia il servizio MySQL
+3. Configura le credenziali nel file .env
+
+### File .env
+
+Crea un file .env nella root del progetto:
+
 ```env
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
-DB_PASSWORD=          # Lascia vuoto per XAMPP
+DB_PASSWORD=
 DB_NAME=meditactive
 PORT=3000
 ```
 
-**Nota Sicurezza:** Il file `.env` contiene credenziali sensibili e non deve mai essere committato su Git.
+Nota: per XAMPP, lascia DB_PASSWORD vuoto.
 
-##  Tecnologie Utilizzate
+## Tecnologie
 
-- **Node.js** con **Express.js** - Server e routing
-- **MySQL** - Database relazionale 
-- **mysql2** - Driver MySQL per Node.js
-- **Prepared Statements** - Prevenzione SQL Injection
-- **Nodemon** - Hot reload in sviluppo
+- Node.js con Express.js per il server
+- MySQL come database relazionale
+- mysql2 per la connessione al database
+- Mocha, Chai e Sinon per i test
+- Winston per il logging
+- Morgan per il logging delle richieste HTTP
 
 ## Struttura Database
 
-Il database MySQL viene creato automaticamente con le seguenti tabelle:
+Il database viene creato automaticamente con il comando 
+pm run setup.
 
-### Tabella `users`
+### Tabella users
+
 ```sql
 CREATE TABLE users (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -75,10 +76,11 @@ CREATE TABLE users (
   nome VARCHAR(255) NOT NULL,
   cognome VARCHAR(255) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+);
 ```
 
-### Tabella `intervals`
+### Tabella intervals
+
 ```sql
 CREATE TABLE intervals (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -87,10 +89,11 @@ CREATE TABLE intervals (
   user_id INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
+);
 ```
 
-### Tabella `interval_goals`
+### Tabella interval_goals
+
 ```sql
 CREATE TABLE interval_goals (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -98,14 +101,14 @@ CREATE TABLE interval_goals (
   goal_name VARCHAR(255) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (interval_id) REFERENCES intervals(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
+);
 ```
 
 ## API Endpoints
 
-### Utenti (`/api/users`)
+### Utenti
 
-#### Crea utente
+**Crea utente**
 ```http
 POST /api/users
 Content-Type: application/json
@@ -117,34 +120,34 @@ Content-Type: application/json
 }
 ```
 
-#### Lista tutti gli utenti
+**Lista utenti**
 ```http
 GET /api/users
 ```
 
-#### Ottieni utente specifico
+**Dettaglio utente**
 ```http
 GET /api/users/:id
 ```
 
-#### Aggiorna utente
+**Aggiorna utente**
 ```http
 PUT /api/users/:id
 Content-Type: application/json
 
 {
-  "nome": "Marco"  // Campi opzionali: nome, cognome, email
+  "nome": "Marco"
 }
 ```
 
-#### Elimina utente
+**Elimina utente**
 ```http
 DELETE /api/users/:id
 ```
 
-### Intervalli (`/api/intervals`)
+### Intervalli
 
-#### Crea intervallo
+**Crea intervallo**
 ```http
 POST /api/intervals
 Content-Type: application/json
@@ -156,182 +159,171 @@ Content-Type: application/json
 }
 ```
 
-#### Lista tutti gli intervalli
+**Lista intervalli**
 ```http
 GET /api/intervals
 ```
 
-#### Lista intervalli con filtri
+**Filtra intervalli**
 ```http
-# Filtra per obiettivo
 GET /api/intervals?obiettivi=meditazione
-
-# Filtra per range di date
 GET /api/intervals?dataInizio=2024-01-01&dataFine=2024-12-31
-
-# Filtra combinando obiettivi e date
-GET /api/intervals?obiettivi=rilassamento&dataInizio=2024-01-01&dataFine=2024-06-30
 ```
 
-#### Ottieni intervallo specifico
+**Dettaglio intervallo**
 ```http
 GET /api/intervals/:id
 ```
 
-#### Aggiorna intervallo
+**Aggiorna intervallo**
 ```http
 PUT /api/intervals/:id
 Content-Type: application/json
 
 {
-  "dataInizio": "2025-10-05",  // Campi opzionali
+  "dataInizio": "2025-10-05",
   "dataFine": "2025-11-05"
 }
 ```
 
-#### Elimina intervallo
+**Elimina intervallo**
 ```http
 DELETE /api/intervals/:id
 ```
 
-#### Aggiungi obiettivo a intervallo
+**Aggiungi obiettivo**
 ```http
 POST /api/intervals/:id/obiettivi
 Content-Type: application/json
 
 {
-  "obiettivo": "Meditazione quotidiana"
+  "obiettivo": "Meditazione mattutina"
 }
 ```
 
-##  Test API Completi
+## Testing
 
-### Test Users
+Il progetto utilizza due approcci complementari per i test:
+
+### Test Unit (principale)
+
+I test unit utilizzano Mocha, Chai e Sinon per testare la logica dei controller in modo isolato, senza dipendenze esterne.
+
 ```bash
-# Crea utente
-curl -X POST http://localhost:3000/api/users \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","nome":"Test","cognome":"User"}'
+npm test
 
-# Lista utenti
-curl http://localhost:3000/api/users
+### Test E2E (opzionale)
 
-# Aggiorna utente (sostituisci ID)
-curl -X PUT http://localhost:3000/api/users/1 \
-  -H "Content-Type: application/json" \
-  -d '{"nome":"Updated"}'
+I test end-to-end testano l'applicazione completa con chiamate HTTP reali. Richiedono il server e il database attivi.
 
-# Elimina utente (sostituisci ID)  
-curl -X DELETE http://localhost:3000/api/users/1
+```bash
+# Terminale 1
+npm run dev
+
+# Terminale 2
+npm run test:e2e
 ```
 
-### Test Intervals
+### Tutti i test
+
 ```bash
-# Crea intervallo (sostituisci utenteId con ID valido)
-curl -X POST http://localhost:3000/api/intervals \
-  -H "Content-Type: application/json" \
-  -d '{"dataInizio":"2025-10-01","dataFine":"2025-10-31","utenteId":1}'
-
-# Aggiungi obiettivo (sostituisci ID intervallo)
-curl -X POST http://localhost:3000/api/intervals/1/obiettivi \
-  -H "Content-Type: application/json" \
-  -d '{"obiettivo":"Meditazione mattutina"}'
-
-# Lista intervalli
-curl http://localhost:3000/api/intervals
+npm run test:all
 ```
+
+## Logging
+
+L'applicazione utilizza Winston per il logging strutturato:
+
+- **logs/error.log** - solo errori
+- **logs/combined.log** - tutti i log
+- **logs/exceptions.log** - eccezioni non gestite
+- **logs/rejections.log** - promise rejections
+
+In sviluppo, i log vengono mostrati anche nella console con colori.
 
 ## Sicurezza
 
-- **Prepared Statements**: Tutte le query utilizzano prepared statements per prevenire SQL Injection
-- **Validazione Input**: Controllo dati obbligatori e formato email
-- **Gestione Errori**: Messaggi di errore informativi senza esporre dettagli interni
-- **Constraint Database**: Chiavi esterne e vincoli di integrità
+- **Prepared Statements**: tutte le query utilizzano prepared statements per prevenire SQL Injection
+- **Validazione input**: controllo dei dati obbligatori e formati
+- **Error handling centralizzato**: gestione coerente degli errori
+- **Constraint database**: chiavi esterne e vincoli di integrità
 
-## Validazioni e Error Handling
+## Validazioni
 
-### Validazioni Utenti
-- Email obbligatoria e formato email valido
+### Utenti
+- Email obbligatoria e univoca
 - Nome e cognome obbligatori
-- Email deve essere univoca (errore 409 se duplicata)
 
-### Validazioni Intervalli
+### Intervalli
 - dataInizio, dataFine e utenteId obbligatori
 - dataFine non può essere precedente a dataInizio
-- utenteId deve esistere nella tabella users
+- utenteId deve esistere
 
-### Codici di Stato HTTP
-- `200` - Operazione completata con successo
-- `201` - Risorsa creata con successo
-- `204` - Operazione di cancellazione completata
-- `400` - Dati di input non validi
-- `404` - Risorsa non trovata
-- `409` - Conflitto (email duplicata)
-- `500` - Errore interno del server
+## Codici HTTP
 
-## Scripts Disponibili
+- 200 - Operazione completata
+- 201 - Risorsa creata
+- 204 - Cancellazione completata
+- 400 - Dati non validi
+- 404 - Risorsa non trovata
+- 500 - Errore server
+
+## Script Disponibili
 
 ```bash
-npm start          # Avvia server in produzione
-npm run dev        # Avvia server in sviluppo con nodemon
-npm run setup      # Esegue setup database MySQL
-npm test           # Esegue test funzionali
+npm start          # Avvia in produzione
+npm run dev        # Avvia con nodemon (sviluppo)
+npm run setup      # Configura database
+npm test           # Test unit
+npm run test:unit  # Test unit esplicito
+npm run test:e2e   # Test end-to-end
+npm run test:all   # Tutti i test
 ```
 
 ## Struttura Progetto
 
 ```
-progetto node/
+MeditActive/
 ├── config/
-│   └── db.js              # Configurazione database MySQL
+│   ├── db.js
+│   └── logger.js
 ├── controllers/
-│   ├── user.controller.js     # Logica business utenti
-│   └── interval.controller.js # Logica business intervalli
+│   ├── user.controller.js
+│   └── interval.controller.js
+├── middleware/
+│   ├── errorHandler.js
+│   └── errors.js
 ├── routes/
-│   ├── user.routes.js         # Rotte utenti
-│   └── interval.routes.js     # Rotte intervalli
-├── schema.sql                 # Schema database MySQL
-├── setup-database.js          # Script configurazione database
-├── test.js                    # Test funzionali automatici
-├── server.js                  # Entry point applicazione
-└── package.json               # Dipendenze e script
+│   ├── user.routes.js
+│   └── interval.routes.js
+├── test/
+│   ├── unit/
+│   │   └── controllers.test.js
+│   └── e2e/
+│       └── functional.test.js
+├── logs/
+├── schema.sql
+├── setup-database.js
+├── server.js
+└── package.json
 ```
 
 ## Troubleshooting
 
-### Server non parte
+**Errore connessione database**
+1. Verifica che MySQL sia attivo
+2. Controlla le credenziali nel file .env
+3. Verifica che la porta 3306 sia libera
+
+**Test falliscono**
+- I test unit non richiedono server attivo
+- I test E2E richiedono server e database attivi
+
+**Reset database**
 ```bash
-# Verifica se la porta 3000 è libera
-lsof -ti :3000
-
-# Se occupata, termina il processo
-lsof -ti :3000 | xargs kill -9
-```
-
-### Errori database
-Per risolvere problemi con il database MySQL:
-```bash
-# Ricrea il database
-node setup-database.js
-
-# Oppure usa il comando npm
 npm run setup
 ```
 
-### Reset completo
-```bash
-# Rimuovi node_modules e reinstalla
-rm -rf node_modules
-npm install
+## Licenza
 
-# Ricrea il database
-node setup-database.js
-
-# Avvia il server
-npm start
-```
-
----
-
-**Progetto completato e testato**  
-Database: MySQL, Sicurezza: Prepared Statements, API: REST compliant
+ISC

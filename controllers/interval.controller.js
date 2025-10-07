@@ -1,4 +1,5 @@
 const { getDB } = require('../config/db');
+const logger = require('../config/logger');
 
 // recupera un interval completo
 const getIntervalWithGoals = async (id) => {
@@ -45,9 +46,12 @@ exports.createInterval = async (req, res) => {
     const sql = 'INSERT INTO intervals (start_date, end_date, user_id) VALUES (?, ?, ?)';
     const [result] = await database.execute(sql, [dataInizio, dataFine, utenteId]);
     
+    logger.info("Nuovo intervallo creato: ID " + result.insertId + " per utente " + utenteId);
+    
     const createdInterval = await getIntervalWithGoals(result.insertId);
     res.status(201).json(createdInterval);
   } catch (error) {
+    logger.error("Errore creazione intervallo: " + error.message);
     res.status(500).json({ message: "Errore durante la creazione dell'intervallo.", error: error.message });
   }
 };
@@ -109,8 +113,11 @@ exports.getAllIntervals = async (req, res) => {
       interval.obiettivi = goals.map(g => g.goal_name);
     }
     
+    logger.debug("Recuperati " + intervals.length + " intervalli");
+    
     res.status(200).json(intervals);
   } catch (error) {
+    logger.error("Errore recupero intervalli: " + error.message);
     res.status(500).json({ message: "Errore durante il recupero degli intervalli.", error: error.message });
   }
 };
@@ -125,6 +132,7 @@ exports.getIntervalById = async (req, res) => {
     }
     res.status(200).json(interval);
   } catch (error) {
+    logger.error("Errore recupero intervallo: " + error.message);
     res.status(500).json({ message: "Errore durante il recupero dell'intervallo.", error: error.message });
   }
 };
@@ -156,9 +164,12 @@ exports.updateInterval = async (req, res) => {
             return res.status(404).json({ message: "Intervallo non trovato." });
         }
         
+        logger.info("Intervallo aggiornato: ID " + id);
+        
         const updatedInterval = await getIntervalWithGoals(id);
         res.status(200).json(updatedInterval);
     } catch (error) {
+        logger.error("Errore aggiornamento intervallo: " + error.message);
         res.status(500).json({ message: "Errore durante l'aggiornamento dell'intervallo.", error: error.message });
     }
 };
@@ -172,8 +183,12 @@ exports.deleteInterval = async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Intervallo non trovato." });
     }
+    
+    logger.info("Intervallo eliminato: ID " + id);
+    
     res.status(204).send();
   } catch (error) {
+    logger.error("Errore eliminazione intervallo: " + error.message);
     res.status(500).json({ message: "Errore durante la cancellazione dell'intervallo.", error: error.message });
   }
 };
@@ -197,9 +212,12 @@ exports.addGoalToInterval = async (req, res) => {
     const sql = 'INSERT INTO interval_goals (interval_id, goal_name) VALUES (?, ?)';
     await database.execute(sql, [interval_id, obiettivo]);
     
+    logger.info("Obiettivo aggiunto all'intervallo ID " + interval_id + ": " + obiettivo);
+    
     const updatedInterval = await getIntervalWithGoals(interval_id);
     res.status(200).json(updatedInterval);
   } catch (error) {
+    logger.error("Errore aggiunta obiettivo: " + error.message);
     res.status(500).json({ message: "Errore durante l'aggiunta dell'obiettivo.", error: error.message });
   }
 };

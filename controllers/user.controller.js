@@ -1,40 +1,60 @@
-const { getDB } = require('../config/db');
+﻿const { getDB } = require('../config/db');
+const logger = require('../config/logger');
 
-// crea utente
+/**
+ * @desc    Crea un nuovo utente
+ * @route   POST /api/users
+ * @access  Public
+ */
 exports.createUser = async (req, res) => {
   try {
     const { email, nome, cognome } = req.body;
     if (!email || !nome || !cognome) {
-      return res.status(400).json({ message: "Email, nome e cognome sono campi obbligatori." });
+      return res.status(400).json({ message: "Email, nome e cognome sono campi obbligatori" });
     }
     
     const database = await getDB();
-   
     const sql = 'INSERT INTO users (email, nome, cognome) VALUES (?, ?, ?)';
     const [result] = await database.execute(sql, [email, nome, cognome]);
+    
+    logger.info("Nuovo utente creato: " + email + " (ID: " + result.insertId + ")");
     
     res.status(201).json({ id: result.insertId, email, nome, cognome });
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') {
-      return res.status(400).json({ message: `L'email '${req.body.email}' è già in uso.` });
+      logger.warn("Tentativo di creare utente con email duplicata: " + req.body.email);
+      return res.status(400).json({ message: "L'email '" + req.body.email + "' è già in uso" });
     }
-    res.status(500).json({ message: "Errore durante la creazione dell'utente.", error: error.message });
+    logger.error("Errore creazione utente: " + error.message);
+    res.status(500).json({ message: "Errore durante la creazione dell'utente", error: error.message });
   }
 };
 
-// ottieni tutti utenti
+/**
+ * @desc    Ottieni tutti gli utenti
+ * @route   GET /api/users
+ * @access  Public
+ */
 exports.getAllUsers = async (req, res) => {
   try {
     const database = await getDB();
     const sql = 'SELECT id, email, nome, cognome, created_at FROM users';
     const [users] = await database.execute(sql);
+    
+    logger.debug("Recuperati " + users.length + " utenti");
+    
     res.status(200).json(users);
   } catch (error) {
-    res.status(500).json({ message: "Errore durante il recupero degli utenti.", error: error.message });
+    logger.error("Errore recupero utenti: " + error.message);
+    res.status(500).json({ message: "Errore durante il recupero degli utenti", error: error.message });
   }
 };
 
-// ottieni singolo utente da ID
+/**
+ * @desc    Ottieni utente per ID
+ * @route   GET /api/users/:id
+ * @access  Public
+ */
 exports.getUserById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -44,21 +64,26 @@ exports.getUserById = async (req, res) => {
     const user = users[0];
     
     if (!user) {
-      return res.status(404).json({ message: "Utente non trovato." });
+      return res.status(404).json({ message: "Utente non trovato" });
     }
+    
     res.status(200).json(user);
   } catch (error) {
-    res.status(500).json({ message: "Errore durante il recupero dell'utente.", error: error.message });
+    logger.error("Errore recupero utente: " + error.message);
+    res.status(500).json({ message: "Errore durante il recupero dell'utente", error: error.message });
   }
 };
 
-// aggiorna utente
+/**
+ * @desc    Aggiorna utente
+ * @route   PUT /api/users/:id
+ * @access  Public
+ */
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
     const { email, nome, cognome } = req.body;
 
-    // aggiorna solo i dati necessari
     let fieldsToUpdate = [];
     let values = [];
     if (email) { fieldsToUpdate.push('email = ?'); values.push(email); }
@@ -66,33 +91,39 @@ exports.updateUser = async (req, res) => {
     if (cognome) { fieldsToUpdate.push('cognome = ?'); values.push(cognome); }
 
     if (fieldsToUpdate.length === 0) {
-      return res.status(400).json({ message: "Nessun dato da aggiornare fornito." });
+      return res.status(400).json({ message: "Nessun dato da aggiornare fornito" });
     }
 
     values.push(id);
-    const sql = `UPDATE users SET ${fieldsToUpdate.join(', ')} WHERE id = ?`;
+    const sql = "UPDATE users SET " + fieldsToUpdate.join(', ') + " WHERE id = ?";
 
     const database = await getDB();
     const [result] = await database.execute(sql, values);
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "Utente non trovato." });
+      return res.status(404).json({ message: "Utente non trovato" });
     }
     
-    // Ottieni l'utente aggiornato
-    const [users] = await database.execute('SELECT id, email, nome, cognome, created_at FROM users WHERE id = ?', [id]);
-    const updatedUser = users[0];
-    res.status(200).json(updatedUser);
-
+    const [updatedUsers] = await database.execute('SELECT id, email, nome, cognome, created_at FROM users WHERE id = ?', [id]);
+    
+    logger.info("Utente aggiornato: ID " + id);
+    
+    res.status(200).json(updatedUsers[0]);
   } catch (error) {
-     if (error.code === 'ER_DUP_ENTRY') {
-      return res.status(400).json({ message: `L'email '${req.body.email}' è già in uso.` });
+    if (error.code === 'ER_DUP_ENTRY') {
+      logger.warn("Tentativo di aggiornare con email duplicata");
+      return res.status(400).json({ message: "L'email è già in uso" });
     }
-    res.status(500).json({ message: "Errore durante l'aggiornamento dell'utente.", error: error.message });
+    logger.error("Errore aggiornamento utente: " + error.message);
+    res.status(500).json({ message: "Errore durante l'aggiornamento dell'utente", error: error.message });
   }
 };
 
-// cancella utente
+/**
+ * @desc    Elimina utente
+ * @route   DELETE /api/users/:id
+ * @access  Public
+ */
 exports.deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -101,12 +132,14 @@ exports.deleteUser = async (req, res) => {
     const [result] = await database.execute(sql, [id]);
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "Utente non trovato." });
+      return res.status(404).json({ message: "Utente non trovato" });
     }
+    
+    logger.info("Utente eliminato: ID " + id);
    
     res.status(204).send(); 
   } catch (error) {
-    res.status(500).json({ message: "Errore durante la cancellazione dell'utente.", error: error.message });
+    logger.error("Errore eliminazione utente: " + error.message);
+    res.status(500).json({ message: "Errore durante la cancellazione dell'utente", error: error.message });
   }
 };
-
