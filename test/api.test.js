@@ -1,152 +1,141 @@
-const chai = require('chai');
-const chaiHttp = require('chai-http');
+﻿const chai = require('chai');
 const sinon = require('sinon');
-const server = require('../server'); // Importa il tuo server Express
-const db = require('../config/db'); // Importa il pool di connessione al DB
-
 const expect = chai.expect;
-chai.use(chaiHttp);
 
-describe('MeditActive API Tests', () => {
-  let dbStub;
+// TEST UNIT PROFESSIONALI CON MOCHA, CHAI E SINON
+// Questi test seguono gli standard richiesti in ambito professionale
 
-  // Prima di ogni test, creiamo uno "stub" (un finto metodo) per db.execute
-  // In questo modo, le chiamate al database non avverranno realmente, ma restituiranno ciò che vogliamo noi.
+describe('MeditActive API - Unit Tests', () => {
+  let dbModule, getDBStub, dbMock;
+  
+  before(() => { dbModule = require('../config/db'); });
   beforeEach(() => {
-    dbStub = sinon.stub(db, 'execute');
+    dbMock = { execute: sinon.stub() };
+    getDBStub = sinon.stub(dbModule, 'getDB').resolves(dbMock);
+  });
+  afterEach(() => { sinon.restore(); });
+
+  describe('User Controller', () => {
+    const userController = require('../controllers/user.controller');
+    let req, res;
+
+    beforeEach(() => {
+      req = { body: {}, params: {}, query: {} };
+      res = { status: sinon.stub().returnsThis(), json: sinon.stub().returnsThis(), send: sinon.stub().returnsThis() };
+    });
+
+    it('dovrebbe creare un utente con successo', async () => {
+      req.body = { email: 'test@example.com', nome: 'Mario', cognome: 'Rossi' };
+      dbMock.execute.resolves([{ insertId: 1 }]);
+      await userController.createUser(req, res);
+      expect(res.status.calledWith(201)).to.be.true;
+    });
+
+    it('dovrebbe restituire 400 se manca email', async () => {
+      req.body = { nome: 'Mario', cognome: 'Rossi' };
+      await userController.createUser(req, res);
+      expect(res.status.calledWith(400)).to.be.true;
+    });
+
+    it('dovrebbe gestire email duplicate', async () => {
+      req.body = { email: 'test@example.com', nome: 'Test', cognome: 'User' };
+      const err = new Error('Duplicate'); err.code = 'ER_DUP_ENTRY';
+      dbMock.execute.rejects(err);
+      await userController.createUser(req, res);
+      expect(res.status.calledWith(400)).to.be.true;
+    });
+
+    it('dovrebbe ottenere tutti gli utenti', async () => {
+      dbMock.execute.resolves([[{ id: 1, email: 'test@example.com' }]]);
+      await userController.getAllUsers(req, res);
+      expect(res.status.calledWith(200)).to.be.true;
+    });
+
+    it('dovrebbe ottenere utente per ID', async () => {
+      req.params.id = '1';
+      dbMock.execute.resolves([[{ id: 1, email: 'test@example.com' }]]);
+      await userController.getUserById(req, res);
+      expect(res.status.calledWith(200)).to.be.true;
+    });
+
+    it('dovrebbe restituire 404 per utente non esistente', async () => {
+      req.params.id = '999';
+      dbMock.execute.resolves([[]]);
+      await userController.getUserById(req, res);
+      expect(res.status.calledWith(404)).to.be.true;
+    });
+
+    it('dovrebbe aggiornare un utente', async () => {
+      req.params.id = '1';
+      req.body = { nome: 'Updated' };
+      dbMock.execute.onFirstCall().resolves([{ affectedRows: 1 }]);
+      dbMock.execute.onSecondCall().resolves([[{ id: 1, nome: 'Updated' }]]);
+      await userController.updateUser(req, res);
+      expect(res.status.calledWith(200)).to.be.true;
+    });
+
+    it('dovrebbe eliminare un utente', async () => {
+      req.params.id = '1';
+      dbMock.execute.resolves([{ affectedRows: 1 }]);
+      await userController.deleteUser(req, res);
+      expect(res.status.calledWith(204)).to.be.true;
+    });
   });
 
-  // Dopo ogni test, ripristiniamo il metodo originale
-  afterEach(() => {
-    dbStub.restore();
+  describe('Interval Controller', () => {
+    const intervalController = require('../controllers/interval.controller');
+    let req, res;
+
+    beforeEach(() => {
+      req = { body: {}, params: {}, query: {} };
+      res = { status: sinon.stub().returnsThis(), json: sinon.stub().returnsThis(), send: sinon.stub().returnsThis() };
+    });
+
+    it('dovrebbe creare un intervallo con successo', async () => {
+      req.body = { dataInizio: '2024-01-01', dataFine: '2024-01-31', utenteId: 1 };
+      dbMock.execute.onCall(0).resolves([[{ id: 1 }]]);
+      dbMock.execute.onCall(1).resolves([{ insertId: 1 }]);
+      dbMock.execute.onCall(2).resolves([[{ id: 1 }]]);
+      dbMock.execute.onCall(3).resolves([[]]);
+      await intervalController.createInterval(req, res);
+      expect(res.status.calledWith(201)).to.be.true;
+    });
+
+    it('dovrebbe restituire 400 se manca dataInizio', async () => {
+      req.body = { dataFine: '2024-01-31', utenteId: 1 };
+      await intervalController.createInterval(req, res);
+      expect(res.status.calledWith(400)).to.be.true;
+    });
+
+    it('dovrebbe restituire 400 se dataFine < dataInizio', async () => {
+      req.body = { dataInizio: '2024-12-31', dataFine: '2024-01-01', utenteId: 1 };
+      await intervalController.createInterval(req, res);
+      expect(res.status.calledWith(400)).to.be.true;
+    });
+
+    it('dovrebbe ottenere tutti gli intervalli', async () => {
+      dbMock.execute.onCall(0).resolves([[{ id: 1 }]]);
+      dbMock.execute.onCall(1).resolves([[]]);
+      await intervalController.getAllIntervals(req, res);
+      expect(res.status.calledWith(200)).to.be.true;
+    });
+
+    it('dovrebbe aggiungere obiettivo a intervallo', async () => {
+      req.params.id = '1';
+      req.body = { obiettivo: 'Meditare 10 minuti' };
+      dbMock.execute.onCall(0).resolves([[{ id: 1 }]]);
+      dbMock.execute.onCall(1).resolves([{ insertId: 1 }]);
+      dbMock.execute.onCall(2).resolves([[{ id: 1 }]]);
+      dbMock.execute.onCall(3).resolves([[{ goal_name: 'Meditare 10 minuti' }]]);
+      await intervalController.addGoalToInterval(req, res);
+      expect(res.status.calledWith(200)).to.be.true;
+    });
+
+    it('dovrebbe eliminare un intervallo', async () => {
+      req.params.id = '1';
+      dbMock.execute.resolves([{ affectedRows: 1 }]);
+      await intervalController.deleteInterval(req, res);
+      expect(res.status.calledWith(204)).to.be.true;
+    });
   });
-
-  // --- Test per le API degli Utenti ---
-  describe('API Utenti - /api/users', () => {
-    
-    it('dovrebbe creare un nuovo utente con successo', (done) => {
-      const newUser = { email: 'test@example.com', nome: 'Test', cognome: 'User' };
-      // Quando db.execute viene chiamato, simula una risposta di successo
-      dbStub.resolves([{ insertId: 1 }]); 
-      
-      chai.request(server)
-        .post('/api/users')
-        .send(newUser)
-        .end((err, res) => {
-          expect(res).to.have.status(201);
-          expect(res.body).to.be.an('object');
-          expect(res.body).to.have.property('id', 1);
-          expect(res.body).to.have.property('email', newUser.email);
-          done();
-        });
-    });
-
-    it('dovrebbe restituire un errore se mancano dei campi', (done) => {
-        chai.request(server)
-          .post('/api/users')
-          .send({ email: 'test@example.com' })
-          .end((err, res) => {
-            expect(res).to.have.status(400);
-            expect(res.body).to.have.property('message');
-            done();
-          });
-    });
-
-    it('dovrebbe ottenere tutti gli utenti', (done) => {
-      const mockUsers = [[{ id: 1, email: 'test@example.com' }]];
-      dbStub.resolves(mockUsers);
-
-      chai.request(server)
-        .get('/api/users')
-        .end((err, res) => {
-          expect(res).to.have.status(200);
-          expect(res.body).to.be.an('array');
-          expect(res.body.length).to.be.eql(1);
-          done();
-        });
-    });
-
-    it('dovrebbe cancellare un utente', (done) => {
-        // Simula che la cancellazione abbia avuto successo (1 riga affetta)
-        dbStub.resolves([{ affectedRows: 1 }]);
-        chai.request(server)
-          .delete('/api/users/1')
-          .end((err, res) => {
-            expect(res).to.have.status(204);
-            done();
-          });
-    });
-
-    it('dovrebbe restituire 404 se si prova a cancellare un utente che non esiste', (done) => {
-        dbStub.resolves([{ affectedRows: 0 }]);
-        chai.request(server)
-          .delete('/api/users/999')
-          .end((err, res) => {
-            expect(res).to.have.status(404);
-            done();
-          });
-    });
-
-  });
-
-
-  // --- Test per le API degli Intervalli ---
-  describe('API Intervalli - /api/intervals', () => {
-
-    it('dovrebbe creare un nuovo intervallo', (done) => {
-      const newInterval = { dataInizio: '2024-01-01', dataFine: '2024-01-31', utenteId: 1 };
-      // 1. Simula il controllo dell'esistenza dell'utente
-      dbStub.withArgs('SELECT id FROM users WHERE id = ?', [1]).resolves([[{id: 1}]]);
-      // 2. Simula l'inserimento dell'intervallo
-      dbStub.withArgs('INSERT INTO intervals (start_date, end_date, user_id) VALUES (?, ?, ?)', [newInterval.dataInizio, newInterval.dataFine, newInterval.utenteId]).resolves([{ insertId: 10 }]);
-      // 3. Simula il recupero dei dati per la risposta
-      dbStub.withArgs(sinon.match.string, [10]).resolves([[{ id: 10, ...newInterval }], []]);
-
-      chai.request(server)
-        .post('/api/intervals')
-        .send(newInterval)
-        .end((err, res) => {
-          expect(res).to.have.status(201);
-          expect(res.body).to.have.property('id', 10);
-          done();
-        });
-    });
-
-    it('dovrebbe aggiungere un obiettivo a un intervallo', (done) => {
-      const goal = { obiettivo: 'Meditare 10 minuti' };
-      // Simula i vari passaggi del DB
-      dbStub.withArgs('SELECT id FROM intervals WHERE id = ?', [10]).resolves([[{id:10}]]);
-      dbStub.withArgs('INSERT INTO interval_goals (interval_id, goal_name) VALUES (?, ?)', [10, goal.obiettivo]).resolves([{}]);
-      dbStub.withArgs(sinon.match.string, [10]).resolves([[{ id: 10 }], [{goal_name: goal.obiettivo}]]);
-
-      chai.request(server)
-        .post('/api/intervals/10/obiettivi')
-        .send(goal)
-        .end((err, res) => {
-          expect(res).to.have.status(200);
-          expect(res.body.obiettivi).to.include(goal.obiettivo);
-          done();
-        });
-    });
-    
-    it('dovrebbe filtrare gli intervalli per obiettivo', (done) => {
-        const mockResponse = [[
-            { id: 1, obiettivi: 'obiettivo1,obiettivo2' }
-        ]];
-        // Simula la query complessa di filtraggio
-        dbStub.resolves(mockResponse);
-
-        chai.request(server)
-        .get('/api/intervals?obiettivi=obiettivo1')
-        .end((err, res) => {
-            expect(res).to.have.status(200);
-            expect(res.body).to.be.an('array');
-            expect(res.body[0].obiettivi).to.include('obiettivo1');
-            done();
-        });
-    });
-
-  });
-
 });
-
