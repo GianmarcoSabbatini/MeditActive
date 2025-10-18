@@ -7,20 +7,21 @@ const getIntervalWithGoals = async (id) => {
   const intervalSql = `
     SELECT 
       i.id, i.start_date, i.end_date,
-      i.user_id, u.email AS user_email, u.nome AS user_nome, u.cognome AS user_cognome 
+      i.user_id, u.email AS user_email, u.nome AS user_nome, u.cognome AS user_cognome,
+      GROUP_CONCAT(ig.goal_name) AS obiettivi
     FROM intervals i
     JOIN users u ON i.user_id = u.id
+    LEFT JOIN interval_goals ig ON i.id = ig.interval_id
     WHERE i.id = ?
+    GROUP BY i.id, i.start_date, i.end_date, i.user_id, u.email, u.nome, u.cognome
   `;
-  const goalsSql = 'SELECT goal_name FROM interval_goals WHERE interval_id = ?';
 
   const [intervals] = await database.execute(intervalSql, [id]);
   const interval = intervals[0];
   if (!interval) return null;
 
-  const [goals] = await database.execute(goalsSql, [id]);
-  
-  interval.obiettivi = goals.map(g => g.goal_name);
+  // Converti ad array
+  interval.obiettivi = interval.obiettivi ? interval.obiettivi.split(',') : [];
   
   return interval;
 };
@@ -46,12 +47,12 @@ exports.createInterval = async (req, res) => {
     const sql = 'INSERT INTO intervals (start_date, end_date, user_id) VALUES (?, ?, ?)';
     const [result] = await database.execute(sql, [dataInizio, dataFine, utenteId]);
     
-    logger.info("Nuovo intervallo creato: ID " + result.insertId + " per utente " + utenteId);
+    logger.info(`Nuovo intervallo creato: ID ${result.insertId} per utente ${utenteId}`);
     
     const createdInterval = await getIntervalWithGoals(result.insertId);
     res.status(201).json(createdInterval);
   } catch (error) {
-    logger.error("Errore creazione intervallo: " + error.message);
+    logger.error(`Errore creazione intervallo: ${error.message}`);
     res.status(500).json({ message: "Errore durante la creazione dell'intervallo.", error: error.message });
   }
 };
@@ -65,9 +66,11 @@ exports.getAllIntervals = async (req, res) => {
     let baseSql = `
         SELECT 
             i.id, i.start_date, i.end_date, i.user_id,
-            u.email, u.nome, u.cognome
+            u.email, u.nome, u.cognome,
+            GROUP_CONCAT(ig.goal_name) AS obiettivi
         FROM intervals i
         JOIN users u ON i.user_id = u.id
+        LEFT JOIN interval_goals ig ON i.id = ig.interval_id
     `;
     
     let whereConditions = [];
@@ -87,37 +90,30 @@ exports.getAllIntervals = async (req, res) => {
     
     // Filtro per obiettivi
     if (obiettivi) {
-      baseSql = `
-        SELECT DISTINCT
-            i.id, i.start_date, i.end_date, i.user_id,
-            u.email, u.nome, u.cognome
-        FROM intervals i
-        JOIN users u ON i.user_id = u.id
-        JOIN interval_goals ig ON i.id = ig.interval_id
-      `;
+      const escapedObiettivi = obiettivi.replace(/[%_]/g, '\\$&');
       whereConditions.push('ig.goal_name LIKE ?');
-      params.push(`%${obiettivi}%`);
+      params.push(`%${escapedObiettivi}%`);
     }
     
     if (whereConditions.length > 0) {
       baseSql += ' WHERE ' + whereConditions.join(' AND ');
     }
     
+    baseSql += ' GROUP BY i.id, i.start_date, i.end_date, i.user_id, u.email, u.nome, u.cognome';
     baseSql += ' ORDER BY i.created_at DESC';
     
     const [intervals] = await database.execute(baseSql, params);
     
-    // Aggiungi obiettivi per ogni intervallo
-    for (let interval of intervals) {
-      const [goals] = await database.execute('SELECT goal_name FROM interval_goals WHERE interval_id = ?', [interval.id]);
-      interval.obiettivi = goals.map(g => g.goal_name);
-    }
+    // Converti gli obiettivi da stringa concatenata ad array
+    intervals.forEach(interval => {
+      interval.obiettivi = interval.obiettivi ? interval.obiettivi.split(',') : [];
+    });
     
-    logger.debug("Recuperati " + intervals.length + " intervalli");
+    logger.debug(`Recuperati ${intervals.length} intervalli`);
     
     res.status(200).json(intervals);
   } catch (error) {
-    logger.error("Errore recupero intervalli: " + error.message);
+    logger.error(`Errore recupero intervalli: ${error.message}`);
     res.status(500).json({ message: "Errore durante il recupero degli intervalli.", error: error.message });
   }
 };
@@ -132,7 +128,7 @@ exports.getIntervalById = async (req, res) => {
     }
     res.status(200).json(interval);
   } catch (error) {
-    logger.error("Errore recupero intervallo: " + error.message);
+    logger.error(`Errore recupero intervallo: ${error.message}`);
     res.status(500).json({ message: "Errore durante il recupero dell'intervallo.", error: error.message });
   }
 };
@@ -164,12 +160,12 @@ exports.updateInterval = async (req, res) => {
             return res.status(404).json({ message: "Intervallo non trovato." });
         }
         
-        logger.info("Intervallo aggiornato: ID " + id);
+        logger.info(`Intervallo aggiornato: ID ${id}`);
         
         const updatedInterval = await getIntervalWithGoals(id);
         res.status(200).json(updatedInterval);
     } catch (error) {
-        logger.error("Errore aggiornamento intervallo: " + error.message);
+        logger.error(`Errore aggiornamento intervallo: ${error.message}`);
         res.status(500).json({ message: "Errore durante l'aggiornamento dell'intervallo.", error: error.message });
     }
 };
@@ -184,11 +180,11 @@ exports.deleteInterval = async (req, res) => {
       return res.status(404).json({ message: "Intervallo non trovato." });
     }
     
-    logger.info("Intervallo eliminato: ID " + id);
+    logger.info(`Intervallo eliminato: ID ${id}`);
     
     res.status(204).send();
   } catch (error) {
-    logger.error("Errore eliminazione intervallo: " + error.message);
+    logger.error(`Errore eliminazione intervallo: ${error.message}`);
     res.status(500).json({ message: "Errore durante la cancellazione dell'intervallo.", error: error.message });
   }
 };
@@ -202,6 +198,11 @@ exports.addGoalToInterval = async (req, res) => {
       return res.status(400).json({ message: "Il campo 'obiettivo' è obbligatorio." });
     }
 
+    // Validazione lunghezza obiettivo
+    if (obiettivo.length > 255) {
+      return res.status(400).json({ message: "L'obiettivo non può superare i 255 caratteri." });
+    }
+
     const database = await getDB();
     const [intervals] = await database.execute('SELECT id FROM intervals WHERE id = ?', [interval_id]);
     const interval = intervals[0];
@@ -212,12 +213,12 @@ exports.addGoalToInterval = async (req, res) => {
     const sql = 'INSERT INTO interval_goals (interval_id, goal_name) VALUES (?, ?)';
     await database.execute(sql, [interval_id, obiettivo]);
     
-    logger.info("Obiettivo aggiunto all'intervallo ID " + interval_id + ": " + obiettivo);
+    logger.info(`Obiettivo aggiunto all'intervallo ID ${interval_id}: ${obiettivo}`);
     
     const updatedInterval = await getIntervalWithGoals(interval_id);
     res.status(200).json(updatedInterval);
   } catch (error) {
-    logger.error("Errore aggiunta obiettivo: " + error.message);
+    logger.error(`Errore aggiunta obiettivo: ${error.message}`);
     res.status(500).json({ message: "Errore durante l'aggiunta dell'obiettivo.", error: error.message });
   }
 };
